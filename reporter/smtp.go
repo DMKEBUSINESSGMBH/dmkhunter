@@ -1,10 +1,9 @@
 package reporter
 
 import (
-	"dmkhunter/model"
+	"github.com/DMKEBUSINESSGMBH/dmkhunter/model"
 	"net/smtp"
 )
-
 
 type MessageFormatter struct {
 }
@@ -43,4 +42,3 @@ func (s SmtpReporter) Send(stack model.ViolationStack) error {
 
 	return err
 }
-

@@ -1,16 +1,17 @@
 package main
 
 import (
-	"dmkhunter/config"
-	scanner2 "dmkhunter/scanner"
 	"flag"
+	"fmt"
+	"github.com/DMKEBUSINESSGMBH/dmkhunter/config"
+	scanner2 "github.com/DMKEBUSINESSGMBH/dmkhunter/scanner"
 	"go.etcd.io/bbolt"
 	"os"
 )
 
 func rescan(conf *config.Config) {
 	scanner := scanner2.NewScanner([]string{"**/*.go"})
-	db, _  := bbolt.Open("hunter.db", 0600, nil)
+	db, _ := bbolt.Open("hunter.db", 0600, nil)
 	defer db.Close()
 
 	err := db.Batch(func(tx *bbolt.Tx) error {
@@ -35,28 +36,29 @@ func rescan(conf *config.Config) {
 		panic(err)
 	}
 }
+
 /*
-func analyze(conf *config.Config) {
-	scanner := scanner2.NewScanner([]string{"Foo", "Bar"})
-	paths := scanner.Scan()
+	func analyze(conf *config.Config) {
+		scanner := scanner2.NewScanner([]string{"Foo", "Bar"})
+		paths := scanner.Scan()
 
-	var analyzers []analyzer.Analyzer
-	stack := model.ViolationStack{}
+		var analyzers []analyzer.Analyzer
+		stack := model.ViolationStack{}
 
-	for _, a := range analyzers {
-		go func() {
-			// for _, file := range paths {
-				// go a.Analyze(&file, stack)
-			// }
-		}()
+		for _, a := range analyzers {
+			go func() {
+				// for _, file := range paths {
+					// go a.Analyze(&file, stack)
+				// }
+			}()
+		}
+
+
+
+		if err := conf.GetReporters().Send(stack); err != nil {
+		 	panic(err)
+		}
 	}
-
-
-
-	if err := conf.GetReporters().Send(stack); err != nil {
-	 	panic(err)
-	}
-}
 */
 func main() {
 	var configFile string

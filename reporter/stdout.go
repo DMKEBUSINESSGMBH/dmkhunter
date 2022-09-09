@@ -1,7 +1,7 @@
 package reporter
 
 import (
-	"dmkhunter/model"
+	"github.com/DMKEBUSINESSGMBH/dmkhunter/model"
 	"github.com/olekukonko/tablewriter"
 	"os"
 )

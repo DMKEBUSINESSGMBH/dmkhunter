@@ -1,9 +1,7 @@
 package reporter
 
-import "dmkhunter/model"
+import "github.com/DMKEBUSINESSGMBH/dmkhunter/model"
 
 type Reporter interface {
 	Send(stack model.ViolationStack) error
 }
-
-

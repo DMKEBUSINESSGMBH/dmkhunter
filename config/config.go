@@ -1,8 +1,8 @@
 package config
 
 import (
-	"dmkhunter/reporter"
 	"github.com/BurntSushi/toml"
+	"github.com/DMKEBUSINESSGMBH/dmkhunter/reporter"
 )
 
 type Config struct {
@@ -37,9 +37,9 @@ func (c Config) GetReporters() reporter.ChainReporter {
 }
 
 type SMTPReporter struct {
-	Username string `toml:"username"`
-	Password string `toml:"password"`
-	Host string `toml:"host"`
+	Username      string   `toml:"username"`
+	Password      string   `toml:"password"`
+	Host          string   `toml:"host"`
 	RecipientList []string `toml:"recipients"`
 }
 
@@ -48,7 +48,7 @@ type WebhookReporter struct {
 }
 
 type Preset struct {
-	paths []string
-	clamav *string
+	paths    []string
+	clamav   *string
 	database *string
 }

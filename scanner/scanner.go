@@ -1,7 +1,7 @@
 package scanner
 
 import (
-	"dmkhunter/model"
+	"github.com/DMKEBUSINESSGMBH/dmkhunter/model"
 	"log"
 	"path/filepath"
 )

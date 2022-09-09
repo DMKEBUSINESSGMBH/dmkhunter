@@ -1,7 +1,7 @@
 package analyzer
 
 import (
-	"dmkhunter/model"
+	"github.com/DMKEBUSINESSGMBH/dmkhunter/model"
 	"github.com/dutchcoders/go-clamd"
 	"log"
 )
@@ -10,7 +10,7 @@ type ClamAVAnalyzer struct {
 	clamd *clamd.Clamd
 }
 
-func NewClamAVAnalyzer(address string) ClamAVAnalyzer{
+func NewClamAVAnalyzer(address string) ClamAVAnalyzer {
 	cl := clamd.NewClamd(address)
 
 	return ClamAVAnalyzer{
@@ -25,7 +25,7 @@ func (a ClamAVAnalyzer) Analyze(f model.File, stack model.ViolationStack) {
 		log.Fatal(err)
 	}
 
-	response := <- ch
+	response := <-ch
 
 	if clamd.RES_FOUND == response.Status {
 		stack.Add(model.Violation{

@@ -1,7 +1,7 @@
 package analyzer
 
 import (
-	"dmkhunter/model"
+	"github.com/DMKEBUSINESSGMBH/dmkhunter/model"
 )
 
 type Analyzer interface {

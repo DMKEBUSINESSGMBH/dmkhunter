@@ -1,10 +1,15 @@
 module github.com/DMKEBUSINESSGMBH/dmkhunter
 
+go 1.19
+
 require (
-	github.com/BurntSushi/toml v0.3.1
-	github.com/dutchcoders/go-clamd v0.0.0-20170520113014-b970184f4d9e
-	github.com/mattn/go-runewidth v0.0.4 // indirect
-	github.com/olekukonko/tablewriter v0.0.1
-	go.etcd.io/bbolt v1.3.2
-	golang.org/x/sys v0.0.0-20190422165155-953cdadca894 // indirect
+	github.com/BurntSushi/toml v1.2.0
+	github.com/olekukonko/tablewriter v0.0.5
+	go.etcd.io/bbolt v1.3.6
+)
+
+require (
+	github.com/dutchcoders/go-clamd v0.0.0-20170520113014-b970184f4d9e // indirect
+	github.com/mattn/go-runewidth v0.0.9 // indirect
+	golang.org/x/sys v0.0.0-20200923182605-d9f96fdee20d // indirect
 )

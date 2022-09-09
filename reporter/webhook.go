@@ -2,13 +2,13 @@ package reporter
 
 import (
 	"bytes"
-	"dmkhunter/model"
 	"encoding/json"
+	"github.com/DMKEBUSINESSGMBH/dmkhunter/model"
 	"net/http"
 )
 
 type WebhookReporter struct {
-	url string
+	url    string
 	client http.Client
 }
 
@@ -17,7 +17,7 @@ func NewWebhookReporter(url string) WebhookReporter {
 
 	return WebhookReporter{
 		client: client,
-		url: url,
+		url:    url,
 	}
 }
 

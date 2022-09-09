@@ -1,6 +1,6 @@
 package reporter
 
-import "dmkhunter/model"
+import "github.com/DMKEBUSINESSGMBH/dmkhunter/model"
 
 type ChainReporter struct {
 	reporters []Reporter
