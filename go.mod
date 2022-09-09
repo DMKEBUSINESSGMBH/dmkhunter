@@ -1,4 +1,4 @@
-module dmkhunter
+module github.com/DMKEBUSINESSGMBH/dmkhunter
 
 require (
 	github.com/BurntSushi/toml v0.3.1
