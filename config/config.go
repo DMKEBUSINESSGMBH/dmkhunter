@@ -1,8 +1,10 @@
 package config
 
 import (
-	"github.com/BurntSushi/toml"
 	"github.com/DMKEBUSINESSGMBH/dmkhunter/reporter"
+	"github.com/pelletier/go-toml/v2"
+	"log"
+	"os"
 )
 
 type Config struct {
@@ -11,10 +13,32 @@ type Config struct {
 	webhook *WebhookReporter
 }
 
+type SMTPReporter struct {
+	Username      string   `toml:"username"`
+	Password      string   `toml:"password"`
+	Host          string   `toml:"host"`
+	RecipientList []string `toml:"recipients"`
+}
+
+type WebhookReporter struct {
+	Url string `toml:"url"`
+}
+
+type Preset struct {
+	Paths    []string `toml:"paths"`
+	Clamav   *string  `toml:"clamav"`
+	Database *string  `toml:"database"`
+}
+
 func LoadConfiguration(p string) (*Config, error) {
 	var config Config
 
-	if _, err := toml.DecodeFile(p, &config); err != nil {
+	f, err := os.Open(p)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := toml.NewDecoder(f).Decode(&config); err != nil {
 		return nil, err
 	}
 
@@ -36,19 +60,12 @@ func (c Config) GetReporters() reporter.ChainReporter {
 	return chain
 }
 
-type SMTPReporter struct {
-	Username      string   `toml:"username"`
-	Password      string   `toml:"password"`
-	Host          string   `toml:"host"`
-	RecipientList []string `toml:"recipients"`
-}
+func (c Config) GetPaths() []string {
+	var paths []string
 
-type WebhookReporter struct {
-	Url string `toml:"url"`
-}
+	for _, preset := range c.Presets {
+		paths = append(paths, preset.Paths...)
+	}
 
-type Preset struct {
-	paths    []string
-	clamav   *string
-	database *string
+	return paths
 }
