@@ -26,6 +26,7 @@ type WebhookReporter struct {
 
 type Preset struct {
 	Paths    []string `toml:"paths"`
+	Ignores  []string `toml:"ignores"`
 	Clamav   *string  `toml:"clamav"`
 	Database *string  `toml:"database"`
 }
