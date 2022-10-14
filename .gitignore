@@ -22,4 +22,6 @@
 
 # End of https://www.gitignore.io/api/go
 
+.hunter.conf
+hunter.db
 
