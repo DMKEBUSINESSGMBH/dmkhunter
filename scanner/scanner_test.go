@@ -31,8 +31,6 @@ func TestScanner_Scan(t *testing.T) {
 		if (*path).Path != expect {
 			t.Errorf("difference in path key and file path found: \nexp: %v\nfile:%v", expect, path.Path)
 		}
-
-		t.Logf("found %v", path)
 	}
 
 	for scanPath, _ := range paths {
