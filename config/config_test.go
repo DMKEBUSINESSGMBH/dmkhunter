@@ -1,6 +1,7 @@
 package config
 
 import (
+	"github.com/DMKEBUSINESSGMBH/dmkhunter/reporter"
 	"reflect"
 	"testing"
 )
@@ -36,5 +37,22 @@ func TestConfig_GetPaths(t *testing.T) {
 
 	if !reflect.DeepEqual(paths, want) {
 		t.Fatalf("%v does not match expected %v", paths, want)
+	}
+}
+
+func TestConfig_GetReporters(t *testing.T) {
+	conf := Config{
+		Presets: nil,
+		smtp:    nil,
+		webhook: nil,
+	}
+
+	actualRouter := conf.GetReporters()
+
+	expectedReporter := reporter.ChainReporter{}
+	expectedReporter.Add(reporter.StdOut{})
+
+	if !reflect.DeepEqual(actualRouter, expectedReporter) {
+		t.Errorf("returned router not expected: %#v", actualRouter)
 	}
 }
