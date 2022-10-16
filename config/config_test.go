@@ -28,8 +28,8 @@ func TestConfig_GetPaths(t *testing.T) {
 				Database: nil,
 			},
 		},
-		smtp:    nil,
-		webhook: nil,
+		Smtp:    nil,
+		Webhook: nil,
 	}
 
 	paths := conf.GetPaths()
@@ -43,8 +43,8 @@ func TestConfig_GetPaths(t *testing.T) {
 func TestConfig_GetReporters(t *testing.T) {
 	conf := Config{
 		Presets: nil,
-		smtp:    nil,
-		webhook: nil,
+		Smtp:    nil,
+		Webhook: nil,
 	}
 
 	actualRouter := conf.GetReporters()

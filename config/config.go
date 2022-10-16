@@ -9,8 +9,8 @@ import (
 
 type Config struct {
 	Presets []Preset
-	smtp    *SMTPReporter
-	webhook *WebhookReporter
+	Smtp    *SMTPReporter
+	Webhook *WebhookReporter
 }
 
 type SMTPReporter struct {
@@ -50,12 +50,12 @@ func (c Config) GetReporters() reporter.ChainReporter {
 	chain := reporter.ChainReporter{}
 	chain.Add(reporter.StdOut{})
 
-	if c.webhook != nil {
-		chain.Add(reporter.NewWebhookReporter(c.webhook.Url))
+	if c.Webhook != nil {
+		chain.Add(reporter.NewWebhookReporter(c.Webhook.Url))
 	}
 
-	if c.smtp != nil {
-		chain.Add(reporter.NewSmtpReporter(c.smtp.Username, c.smtp.Password, c.smtp.Host, c.smtp.RecipientList))
+	if c.Smtp != nil {
+		chain.Add(reporter.NewSmtpReporter(c.Smtp.Username, c.Smtp.Password, c.Smtp.Host, c.Smtp.RecipientList))
 	}
 
 	return chain
