@@ -18,6 +18,8 @@ type SMTPReporter struct {
 	Password      string   `toml:"password"`
 	Host          string   `toml:"host"`
 	RecipientList []string `toml:"recipients"`
+	FromAddress   *string  `toml:"from-address"`
+	Topic         *string  `toml:"topic"`
 }
 
 type WebhookReporter struct {
@@ -55,7 +57,20 @@ func (c Config) GetReporters() reporter.ChainReporter {
 	}
 
 	if c.Smtp != nil {
-		chain.Add(reporter.NewSmtpReporter(c.Smtp.Username, c.Smtp.Password, c.Smtp.Host, c.Smtp.RecipientList))
+		topicname := "dmkhunter"
+		if c.Smtp.Topic != nil {
+			topicname = *c.Smtp.Topic
+		} else {
+			if osHost, err := os.Hostname(); err == nil {
+				topicname = osHost
+			}
+		}
+		smtpFrom := "dmkhunter@" + topicname
+		if c.Smtp.FromAddress != nil {
+			smtpFrom = *c.Smtp.FromAddress
+		}
+
+		chain.Add(reporter.NewSmtpReporter(c.Smtp.Username, c.Smtp.Password, c.Smtp.Host, c.Smtp.RecipientList, smtpFrom, topicname))
 	}
 
 	return chain
