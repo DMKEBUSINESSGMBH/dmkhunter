@@ -26,7 +26,7 @@ func (s Scanner) Scan() map[string]*model.File {
 
 	for _, path := range s.paths {
 		filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
-			if d.IsDir() {
+			if d.IsDir() || d.Type().IsRegular() == false {
 				return nil
 			}
 
@@ -42,7 +42,6 @@ func (s Scanner) Scan() map[string]*model.File {
 			if len(newPath) > 0 {
 				path = newPath
 			}
-
 			f, err := model.NewFile(path)
 
 			if err != nil {
