@@ -7,7 +7,7 @@ import (
 )
 
 func TestConfig_LoadConfig(t *testing.T) {
-	_, err := LoadConfiguration("../.hunter.conf")
+	_, err := LoadConfiguration("../.hunter.conf.example")
 
 	if err != nil {
 		t.Fatalf("error loading config file: %q", err)
