@@ -1,4 +1,4 @@
-name: DMK Hunter
+name: Go Test
 
 on: [push]
 
