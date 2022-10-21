@@ -1,0 +1,29 @@
+[[Presets]]
+# a list of directories you want to watch
+paths = ['/your/path/to/watch']
+
+# must be valid perl regex format
+ignores = ['\*\.tmp']
+
+# unused
+clamav = ""
+
+# the database name where your hashes are stored (bolt key value store)
+database = "hunter.db"
+
+
+[smtp]
+# user to smtp host
+username = "smtpuser"
+
+# CRAM-MD5 secret
+password = "smtppassword"
+
+# your smtp host
+host = "smtphost.com:1025"
+
+# list of recipients, that will get the alert mail
+recipients = [ "warning@your-domain.com", "alert@your-domain.com" ]
+
+# from address of the alert mail
+from-address = "dmkhunter@your-domain.com"
