@@ -23,3 +23,7 @@ func (s *ViolationStack) Add(violation Violation) {
 func (s *ViolationStack) All() []Violation {
 	return s.violations
 }
+
+func (s *ViolationStack) Count() int {
+	return len(s.violations)
+}
