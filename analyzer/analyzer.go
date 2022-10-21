@@ -5,5 +5,5 @@ import (
 )
 
 type Analyzer interface {
-	Analyze(file model.File, stack model.ViolationStack) error
+	Analyze(file model.File, stack *model.ViolationStack) error
 }
