@@ -13,6 +13,13 @@ type Config struct {
 	Webhook *WebhookReporter
 }
 
+type Preset struct {
+	Paths    []string `toml:"paths"`
+	Ignores  []string `toml:"ignores"`
+	Clamav   *string  `toml:"clamav"`
+	Database *string  `toml:"database"`
+}
+
 type SMTPReporter struct {
 	Username      string   `toml:"username"`
 	Password      string   `toml:"password"`
@@ -24,13 +31,6 @@ type SMTPReporter struct {
 
 type WebhookReporter struct {
 	Url string `toml:"url"`
-}
-
-type Preset struct {
-	Paths    []string `toml:"paths"`
-	Ignores  []string `toml:"ignores"`
-	Clamav   *string  `toml:"clamav"`
-	Database *string  `toml:"database"`
 }
 
 func LoadConfiguration(p string) (*Config, error) {

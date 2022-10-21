@@ -44,8 +44,6 @@ type SmtpReporter struct {
 
 func (s SmtpReporter) Send(stack model.ViolationStack) error {
 	formatter := MessageFormatter{topic: s.topic}
-
-	fmt.Printf("mail %#v", s)
 	auth := smtp.CRAMMD5Auth(s.username, s.password)
 	//auth := smtp.PlainAuth("", s.username, s.password, s.host)
 	err := smtp.SendMail(s.host, auth, s.from, s.recipientList, formatter.Format(stack))
