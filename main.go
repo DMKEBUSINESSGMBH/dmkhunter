@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/DMKEBUSINESSGMBH/dmkhunter/analyzer"
 	"github.com/DMKEBUSINESSGMBH/dmkhunter/config"
+	"github.com/DMKEBUSINESSGMBH/dmkhunter/lister"
 	"github.com/DMKEBUSINESSGMBH/dmkhunter/model"
 	scanner2 "github.com/DMKEBUSINESSGMBH/dmkhunter/scanner"
 	"go.etcd.io/bbolt"
@@ -24,15 +25,8 @@ func rescan(conf *config.Config) {
 
 	for _, preset := range conf.Presets {
 		scanner := scanner2.NewScanner(preset.Paths, &preset.Ignores)
-		var databasename string
 
-		if preset.Database != nil {
-			databasename = *preset.Database
-		} else {
-			databasename = "hunter.db"
-		}
-
-		err := saveHashes(databasename, scanner)
+		err := saveHashes(preset.GetDatabase(), scanner)
 
 		if err != nil {
 			panic(err)
@@ -228,6 +222,11 @@ func main() {
 	case "analyze":
 		go spinner(100 * time.Millisecond)
 		analyze(conf)
+	case "list":
+		if err := lister.List(conf, flag.Args()[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	default:
 		help()
 	}
@@ -250,6 +249,11 @@ available arguments:
 rescan	- rescan the configured directories and rewrite md5 hashes to database
 scan	- 
 analyze	- check all hashes for files in configured directories and report
+list	- show stored hashes as a table, options:
+	  -prefix <path>   only paths starting with <path>
+	  -contains <text> only paths containing <text>
+	  -limit <n>       show at most <n> records
+	  -db <file>       read <file> instead of the configured databases
 	`
 	fmt.Println(help_info)
 }

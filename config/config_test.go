@@ -56,3 +56,20 @@ func TestConfig_GetReporters(t *testing.T) {
 		t.Errorf("returned router not expected: %#v", actualRouter)
 	}
 }
+
+func TestConfig_GetDatabases(t *testing.T) {
+	other := "other.db"
+	conf := Config{
+		Presets: []Preset{
+			{Database: nil},
+			{Database: &other},
+			{Database: &other},
+		},
+	}
+
+	expected := []string{"hunter.db", "other.db"}
+
+	if actual := conf.GetDatabases(); !reflect.DeepEqual(actual, expected) {
+		t.Errorf("expected databases %v, got %v", expected, actual)
+	}
+}

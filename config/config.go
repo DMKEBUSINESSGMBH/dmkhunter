@@ -85,3 +85,29 @@ func (c Config) GetPaths() []string {
 
 	return paths
 }
+
+// GetDatabases returns the database files of all presets, without duplicates.
+func (c Config) GetDatabases() []string {
+	var databases []string
+	seen := map[string]bool{}
+
+	for _, preset := range c.Presets {
+		name := preset.GetDatabase()
+
+		if !seen[name] {
+			seen[name] = true
+			databases = append(databases, name)
+		}
+	}
+
+	return databases
+}
+
+// GetDatabase returns the database file of the preset, rescan writes to hunter.db if none is configured.
+func (p Preset) GetDatabase() string {
+	if p.Database != nil {
+		return *p.Database
+	}
+
+	return "hunter.db"
+}
