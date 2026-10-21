@@ -15,6 +15,7 @@ const (
 	verbosityQuiet   = iota // only errors and the analyze report
 	verbositySpinner        // a spinner while working
 	verbosityFiles          // spinner, number of files and the current file
+	verbosityStats          // like verbosityFiles plus hashes per second and a runtime summary
 )
 
 // clearLine moves to the line start and clears it
@@ -68,6 +69,7 @@ type progress struct {
 	color   bool
 	mu      sync.Mutex // serializes writes to out
 	count   atomic.Int64
+	hashed  atomic.Int64
 	current atomic.Pointer[string]
 	label   string
 	started time.Time
@@ -136,6 +138,12 @@ func (p *progress) Stop() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	fmt.Fprint(p.out, clearLine)
+
+	if p.level >= verbosityStats {
+		elapsed := time.Since(p.started)
+		fmt.Fprintf(p.out, "%s done: %d files hashed in %s, %s\n",
+			p.label, p.hashed.Load(), elapsed.Round(10*time.Millisecond), p.rate(elapsed))
+	}
 }
 
 // File records the file a worker starts on, it is safe for concurrent use.
@@ -146,6 +154,24 @@ func (p *progress) File(path string) {
 
 	p.count.Add(1)
 	p.current.Store(&path)
+}
+
+// Hashed records a successfully hashed file, it is safe for concurrent use.
+func (p *progress) Hashed() {
+	if p.level < verbosityStats {
+		return
+	}
+
+	p.hashed.Add(1)
+}
+
+// rate returns the average hashes per second since Start
+func (p *progress) rate(elapsed time.Duration) string {
+	if elapsed <= 0 {
+		return "0 hashes/s"
+	}
+
+	return fmt.Sprintf("%.0f hashes/s", float64(p.hashed.Load())/elapsed.Seconds())
 }
 
 // Error prints err on its own line, the progress line is redrawn below it.
@@ -172,7 +198,12 @@ func (p *progress) draw(spin rune) {
 			current = shortenPath(*c, maxPathLength)
 		}
 
-		line += p.paint(colorDim, fmt.Sprintf(" · %d files · %s", p.count.Load(), current))
+		stats := ""
+		if p.level >= verbosityStats {
+			stats = " · " + p.rate(time.Since(p.started))
+		}
+
+		line += p.paint(colorDim, fmt.Sprintf(" · %d files%s · %s", p.count.Load(), stats, current))
 	}
 
 	fmt.Fprint(p.out, clearLine+line)

@@ -6,15 +6,18 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 )
 
 func TestVerbosityFlag(t *testing.T) {
 	tests := map[string]int{
-		"":      verbosityQuiet,
-		"-v":    verbositySpinner,
-		"-vv":   verbosityFiles,
-		"-v -v": verbosityFiles,
+		"":       verbosityQuiet,
+		"-v":     verbositySpinner,
+		"-vv":    verbosityFiles,
+		"-v -v":  verbosityFiles,
+		"-vvv":   verbosityStats,
+		"-v -vv": verbosityStats,
 	}
 
 	for args, expected := range tests {
@@ -22,6 +25,7 @@ func TestVerbosityFlag(t *testing.T) {
 		flags := flag.NewFlagSet("test", flag.ContinueOnError)
 		flags.Var(verbosityFlag{&level, 1}, "v", "")
 		flags.Var(verbosityFlag{&level, 2}, "vv", "")
+		flags.Var(verbosityFlag{&level, 3}, "vvv", "")
 
 		if err := flags.Parse(append(strings.Fields(args), "analyze")); err != nil {
 			t.Fatalf("%q: %v", args, err)
@@ -100,5 +104,51 @@ func TestShortenPath(t *testing.T) {
 	}
 	if !utf8.ValidString(got) {
 		t.Errorf("shortened path is not valid UTF-8: %q", got)
+	}
+}
+
+func TestProgress_Stats(t *testing.T) {
+	run := func(level int) string {
+		var out strings.Builder
+		p := newProgress(level, &out)
+		p.File("/srv/first.php")
+		p.Hashed()
+		p.File("/srv/second.php")
+		p.Hashed()
+		p.Start("Analyzing")
+		p.Stop()
+		return out.String()
+	}
+
+	out := run(verbosityStats)
+	if !strings.Contains(out, " · 2 files · ") || !strings.Contains(out, " hashes/s · /srv/second.php") {
+		t.Errorf("stats: expected count, rate and current file, got %q", out)
+	}
+	if !strings.Contains(out, "Analyzing done: 2 files hashed in ") || !strings.HasSuffix(out, " hashes/s\n") {
+		t.Errorf("stats: expected a summary after Stop, got %q", out)
+	}
+
+	if out := run(verbosityFiles); strings.Contains(out, "hashes/s") || strings.Contains(out, "done:") {
+		t.Errorf("files: expected no stats, got %q", out)
+	}
+}
+
+func TestProgress_Rate(t *testing.T) {
+	p := newProgress(verbosityStats, io.Discard)
+	for range 10 {
+		p.Hashed()
+	}
+
+	tests := map[time.Duration]string{
+		2 * time.Second:        "5 hashes/s",
+		500 * time.Millisecond: "20 hashes/s",
+		3 * time.Second:        "3 hashes/s", // 3.33 rounded
+		0:                      "0 hashes/s",
+	}
+
+	for elapsed, expected := range tests {
+		if got := p.rate(elapsed); got != expected {
+			t.Errorf("rate(%s) with 10 hashes: expected %q, got %q", elapsed, expected, got)
+		}
 	}
 }

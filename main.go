@@ -109,6 +109,7 @@ func saveHashes(databasename string, scanner scanner2.Scanner, prog *progress) e
 					continue
 				}
 
+				prog.Hashed()
 				hashes <- fileHash{path: f.Path, hash: hash}
 			}
 		})
@@ -206,11 +207,17 @@ func analyzeFiles(scanner scanner2.Scanner, analyzers []analyzer.Analyzer, stack
 		wg.Go(func() {
 			for f := range files {
 				prog.File(f.Path)
+				ok := true
 
 				for _, a := range analyzers {
 					if err := a.Analyze(*f, &stacks[i]); err != nil {
 						prog.Error(err)
+						ok = false
 					}
+				}
+
+				if ok {
+					prog.Hashed()
 				}
 			}
 		})
@@ -285,6 +292,7 @@ func main() {
 	flag.StringVar(&configFile, "config", ".hunter.conf", "")
 	flag.Var(verbosityFlag{&verbosity, 1}, "v", "show a spinner, -v -v also shows the current file")
 	flag.Var(verbosityFlag{&verbosity, 2}, "vv", "show a spinner and the current file")
+	flag.Var(verbosityFlag{&verbosity, 3}, "vvv", "like -vv plus hashes per second and the runtime")
 
 	globals, args := splitGlobalFlags(os.Args[1:], flag.CommandLine)
 	flag.CommandLine.Parse(globals)
@@ -347,7 +355,7 @@ func main() {
 func help() {
 	help_info := `DMKHunter help:
 
-usage: dmkhunter [-config <file>] [-v|-vv] <argument>
+usage: dmkhunter [-config <file>] [-v|-vv|-vvv] <argument>
 
 available arguments:
 ------------------------------------------------------------------------------
@@ -365,6 +373,7 @@ verbosity (progress goes to stderr):
 (none)	- print only errors and the analyze report
 -v	- show a spinner while working
 -vv	- show a spinner, the number of files and the current file
+-vvv	- like -vv plus hashes per second, and the runtime when done
 
 exit codes:
 ------------------------------------------------------------------------------
