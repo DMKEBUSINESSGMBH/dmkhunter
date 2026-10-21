@@ -102,3 +102,38 @@ func TestNewDatabaseAnalyzer_MissingDatabase(t *testing.T) {
 		t.Error("expected an error for a missing database")
 	}
 }
+
+func TestDatabaseAnalyzer_MessageHasOnlyFilename(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "hunter.db")
+
+	db, err := bbolt.Open(dbPath, 0600, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = db.Update(func(tx *bbolt.Tx) error {
+		_, err := tx.CreateBucket(bucketName)
+		return err
+	})
+	db.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	a, err := NewDatabaseAnalyzer(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+
+	f := writeFile(t, filepath.Join(dir, "index.php"), "<?php")
+	stack := model.ViolationStack{}
+	if err := a.Analyze(*f, &stack); err != nil {
+		t.Fatal(err)
+	}
+
+	v := stack.All()[0]
+	if v.Message != "New file detected: index.php" || v.Filepath != f.Path {
+		t.Errorf("expected filename in message and full path in Filepath, got %+v", v)
+	}
+}

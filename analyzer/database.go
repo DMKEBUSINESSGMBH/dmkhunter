@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"time"
+
 	"github.com/DMKEBUSINESSGMBH/dmkhunter/model"
 	"go.etcd.io/bbolt"
-	"time"
 )
 
 var bucketName = []byte("file_hashes")
@@ -59,7 +61,7 @@ func (d *DatabaseAnalyzer) Analyze(file model.File, stack *model.ViolationStack)
 		if data == nil {
 			stack.Add(model.Violation{
 				Filepath: file.Path,
-				Message:  fmt.Sprintf("New file detected: %s", file.Path),
+				Message:  fmt.Sprintf("New file detected: %s", filepath.Base(file.Path)),
 				Severity: model.LEVEL_ERROR,
 			})
 
@@ -69,7 +71,7 @@ func (d *DatabaseAnalyzer) Analyze(file model.File, stack *model.ViolationStack)
 		if !bytes.Equal(data, hash) {
 			stack.Add(model.Violation{
 				Filepath: file.Path,
-				Message:  fmt.Sprintf("The file %s has been changed!", file.Path),
+				Message:  fmt.Sprintf("The file %s has been changed!", filepath.Base(file.Path)),
 				Severity: model.LEVEL_ERROR,
 			})
 		}

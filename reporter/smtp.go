@@ -16,7 +16,8 @@ func (f MessageFormatter) Format(stack model.ViolationStack) []byte {
 	header = fmt.Sprintf(header, f.topic, len(stack.All()))
 
 	for _, violation := range stack.All() {
-		msgBody += violation.Message + "\r\n"
+		// the message only names the file, the path tells which one
+		msgBody += violation.Message + " (" + violation.Filepath + ")\r\n"
 	}
 
 	return []byte(header + msgBody)
