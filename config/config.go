@@ -3,7 +3,6 @@ package config
 import (
 	"github.com/DMKEBUSINESSGMBH/dmkhunter/reporter"
 	"github.com/pelletier/go-toml/v2"
-	"log"
 	"os"
 )
 
@@ -38,8 +37,9 @@ func LoadConfiguration(p string) (*Config, error) {
 
 	f, err := os.Open(p)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
+	defer f.Close()
 
 	if err := toml.NewDecoder(f).Decode(&config); err != nil {
 		return nil, err

@@ -1,19 +1,25 @@
 package main
 
 import (
+	"bufio"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"runtime"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/DMKEBUSINESSGMBH/dmkhunter/analyzer"
 	"github.com/DMKEBUSINESSGMBH/dmkhunter/config"
 	"github.com/DMKEBUSINESSGMBH/dmkhunter/lister"
 	"github.com/DMKEBUSINESSGMBH/dmkhunter/model"
 	scanner2 "github.com/DMKEBUSINESSGMBH/dmkhunter/scanner"
 	"go.etcd.io/bbolt"
-	"os"
-	"runtime"
-	"sort"
-	"sync"
-	"time"
 )
 
 // number of entries written per bbolt transaction during rescan
@@ -21,17 +27,49 @@ const writeBatchSize = 10000
 
 var workers = runtime.NumCPU()
 
-func rescan(conf *config.Config) {
-
+func rescan(conf *config.Config, prog *progress) error {
 	for _, preset := range conf.Presets {
 		scanner := scanner2.NewScanner(preset.Paths, &preset.Ignores)
 
-		err := saveHashes(preset.GetDatabase(), scanner)
-
-		if err != nil {
-			panic(err)
+		if err := saveHashes(preset.GetDatabase(), scanner, prog); err != nil {
+			return err
 		}
 	}
+
+	return nil
+}
+
+// confirmDeleteDatabases asks for every existing database whether it should be deleted before the rescan.
+// Anything but y or yes keeps the database, so a rescan without a terminal never deletes it.
+func confirmDeleteDatabases(databases []string, in io.Reader, out io.Writer) error {
+	answers := bufio.NewReader(in)
+
+	for _, name := range databases {
+		if _, err := os.Stat(name); errors.Is(err, fs.ErrNotExist) {
+			continue
+		} else if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(out, "Database %s already exists, delete it before rescan? [y/N] ", name)
+		answer, err := answers.ReadString('\n')
+
+		if err != nil && err != io.EOF {
+			return err
+		}
+
+		switch strings.ToLower(strings.TrimSpace(answer)) {
+		case "y", "yes":
+			if err := os.Remove(name); err != nil {
+				return err
+			}
+			fmt.Fprintf(out, "deleted %s\n", name)
+		default:
+			fmt.Fprintf(out, "keeping %s\n", name)
+		}
+	}
+
+	return nil
 }
 
 type fileHash struct {
@@ -39,7 +77,7 @@ type fileHash struct {
 	hash []byte
 }
 
-func saveHashes(databasename string, scanner scanner2.Scanner) error {
+func saveHashes(databasename string, scanner scanner2.Scanner, prog *progress) error {
 	db, err := bbolt.Open(databasename, 0600, &bbolt.Options{Timeout: 5 * time.Second})
 
 	if err != nil {
@@ -63,10 +101,11 @@ func saveHashes(databasename string, scanner scanner2.Scanner) error {
 	for range workers {
 		wg.Go(func() {
 			for f := range files {
+				prog.File(f.Path)
 				hash, err := f.Hash()
 
 				if err != nil {
-					fmt.Fprintln(os.Stderr, err)
+					prog.Error(err)
 					continue
 				}
 
@@ -129,7 +168,8 @@ func saveHashes(databasename string, scanner scanner2.Scanner) error {
 	return writeErr
 }
 
-func analyze(conf *config.Config) {
+// analyze checks all presets with a database and returns the violations found, reporting is up to the caller.
+func analyze(conf *config.Config, prog *progress) (model.ViolationStack, error) {
 	stack := model.ViolationStack{}
 
 	for _, preset := range conf.Presets {
@@ -140,29 +180,23 @@ func analyze(conf *config.Config) {
 		dbanalyzer, err := analyzer.NewDatabaseAnalyzer(*preset.Database)
 
 		if err != nil {
-			panic(err)
+			return stack, err
 		}
 
 		scanner := scanner2.NewScanner(preset.Paths, &preset.Ignores)
-		err = analyzeFiles(scanner, []analyzer.Analyzer{dbanalyzer}, &stack)
+		err = analyzeFiles(scanner, []analyzer.Analyzer{dbanalyzer}, &stack, prog)
 		dbanalyzer.Close()
 
 		if err != nil {
-			panic(err)
+			return stack, err
 		}
 	}
 
-	if stack.Count() > 0 {
-		reporters := conf.GetReporters()
-
-		if err := reporters.Send(stack); err != nil {
-			panic(err)
-		}
-	}
+	return stack, nil
 }
 
 // analyzeFiles runs the analyzers on all scanned files in parallel and adds the violations to stack.
-func analyzeFiles(scanner scanner2.Scanner, analyzers []analyzer.Analyzer, stack *model.ViolationStack) error {
+func analyzeFiles(scanner scanner2.Scanner, analyzers []analyzer.Analyzer, stack *model.ViolationStack, prog *progress) error {
 	files := make(chan *model.File, 1024)
 	// one stack per worker, ViolationStack is not safe for concurrent use
 	stacks := make([]model.ViolationStack, workers)
@@ -171,9 +205,11 @@ func analyzeFiles(scanner scanner2.Scanner, analyzers []analyzer.Analyzer, stack
 	for i := range stacks {
 		wg.Go(func() {
 			for f := range files {
+				prog.File(f.Path)
+
 				for _, a := range analyzers {
 					if err := a.Analyze(*f, &stacks[i]); err != nil {
-						fmt.Println(err)
+						prog.Error(err)
 					}
 				}
 			}
@@ -196,64 +232,145 @@ func analyzeFiles(scanner scanner2.Scanner, analyzers []analyzer.Analyzer, stack
 	return err
 }
 
+// exit codes, 1 is only used by analyze to signal violations
+const (
+	exitViolations = 1
+	exitError      = 2
+)
+
+// fail prints err and exits, so errors can't be mistaken for found violations.
+func fail(err error) {
+	fmt.Fprintln(os.Stderr, "error:", err)
+	os.Exit(exitError)
+}
+
+// splitGlobalFlags moves the flags defined in globals out of args, wherever they are,
+// so "analyze -vv" works like "-vv analyze". The other args keep their order for the command.
+// Everything after "--" is left to the command.
+func splitGlobalFlags(args []string, globals *flag.FlagSet) (flags []string, rest []string) {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+
+		if arg == "--" {
+			return flags, append(rest, args[i+1:]...)
+		}
+
+		name, isFlag := strings.CutPrefix(arg, "--")
+		if !isFlag {
+			name, isFlag = strings.CutPrefix(arg, "-")
+		}
+		name, _, inline := strings.Cut(name, "=")
+
+		f := globals.Lookup(name)
+		if !isFlag || name == "" || f == nil {
+			rest = append(rest, arg)
+			continue
+		}
+
+		flags = append(flags, arg)
+
+		// a non-bool flag without "=value" takes the next arg as its value
+		if b, ok := f.Value.(interface{ IsBoolFlag() bool }); (!ok || !b.IsBoolFlag()) && !inline && i+1 < len(args) {
+			i++
+			flags = append(flags, args[i])
+		}
+	}
+
+	return flags, rest
+}
+
 func main() {
 	var configFile string
+	verbosity := verbosityQuiet
 	flag.StringVar(&configFile, "config", ".hunter.conf", "")
-	flag.Parse()
+	flag.Var(verbosityFlag{&verbosity, 1}, "v", "show a spinner, -v -v also shows the current file")
+	flag.Var(verbosityFlag{&verbosity, 2}, "vv", "show a spinner and the current file")
+
+	globals, args := splitGlobalFlags(os.Args[1:], flag.CommandLine)
+	flag.CommandLine.Parse(globals)
 
 	conf, err := config.LoadConfiguration(configFile)
 
 	if err != nil {
-		panic(err)
+		fail(err)
 	}
 
-	if flag.NArg() == 0 {
+	if len(args) == 0 {
 		help()
 		os.Exit(0)
 	}
 
-	switch flag.Arg(0) {
+	prog := newProgress(verbosity, os.Stderr)
+
+	switch args[0] {
 	case "scan":
 		//
 	case "rescan":
-		go spinner(100 * time.Millisecond)
-		rescan(conf)
-		break
+		// ask before the progress starts, it would overwrite the prompt
+		if err := confirmDeleteDatabases(conf.GetDatabases(), os.Stdin, os.Stdout); err != nil {
+			fail(err)
+		}
+
+		prog.Start()
+		err := rescan(conf, prog)
+		prog.Stop()
+
+		if err != nil {
+			fail(err)
+		}
 	case "analyze":
-		go spinner(100 * time.Millisecond)
-		analyze(conf)
+		prog.Start()
+		stack, err := analyze(conf, prog)
+		prog.Stop()
+
+		if err != nil {
+			fail(err)
+		}
+
+		if stack.Count() > 0 {
+			reporters := conf.GetReporters()
+
+			if err := reporters.Send(stack); err != nil {
+				fail(err)
+			}
+			os.Exit(exitViolations)
+		}
 	case "list":
-		if err := lister.List(conf, flag.Args()[1:]); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+		if err := lister.List(conf, args[1:]); err != nil {
+			fail(err)
 		}
 	default:
 		help()
 	}
 }
 
-func spinner(delay time.Duration) {
-	for {
-		for _, r := range `-\|/` {
-			fmt.Printf("\r%c\r", r)
-			time.Sleep(delay)
-		}
-	}
-}
-
 func help() {
 	help_info := `DMKHunter help:
+
+usage: dmkhunter [-config <file>] [-v|-vv] <argument>
 
 available arguments:
 ------------------------------------------------------------------------------
 rescan	- rescan the configured directories and rewrite md5 hashes to database
-scan	- 
+scan	-
 analyze	- check all hashes for files in configured directories and report
 list	- show stored hashes as a table, options:
 	  -prefix <path>   only paths starting with <path>
 	  -contains <text> only paths containing <text>
 	  -limit <n>       show at most <n> records
 	  -db <file>       read <file> instead of the configured databases
+
+verbosity (progress goes to stderr):
+------------------------------------------------------------------------------
+(none)	- print only errors and the analyze report
+-v	- show a spinner while working
+-vv	- show a spinner, the number of files and the current file
+
+exit codes:
+------------------------------------------------------------------------------
+0	- success, analyze found no violations
+1	- analyze found violations
+2	- error, e.g. missing config or database
 	`
 	fmt.Println(help_info)
 }
