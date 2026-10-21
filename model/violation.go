@@ -7,9 +7,9 @@ const (
 )
 
 type Violation struct {
-	Severity string
-	Message  string
-	Filepath string
+	Severity string `json:"severity"`
+	Message  string `json:"message"`
+	Filepath string `json:"filepath"`
 }
 
 type ViolationStack struct {
