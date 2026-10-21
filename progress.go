@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -18,6 +19,16 @@ const (
 
 // clearLine moves to the line start and clears it
 const clearLine = "\r\033[K"
+
+// spinnerFrames pulse from a dot to a full star and back, "*" instead of "✳" because some fonts draw that one as a wide emoji
+var spinnerFrames = []rune("·✢*✶✻✽✻✶*✢")
+
+// colors for the progress line, only used when the output is a terminal
+const (
+	colorSpinner = "\033[38;2;215;119;87m" // Claude orange
+	colorDim     = "\033[2m"
+	colorReset   = "\033[0m"
+)
 
 // maxPathLength keeps the progress line on one terminal line
 const maxPathLength = 100
@@ -54,9 +65,12 @@ func (v verbosityFlag) IsBoolFlag() bool {
 type progress struct {
 	level   int
 	out     io.Writer
+	color   bool
 	mu      sync.Mutex // serializes writes to out
 	count   atomic.Int64
 	current atomic.Pointer[string]
+	label   string
+	started time.Time
 	stop    chan struct{}
 	done    chan struct{}
 }
@@ -65,15 +79,29 @@ func newProgress(level int, out io.Writer) *progress {
 	return &progress{
 		level: level,
 		out:   out,
+		color: isTerminal(out),
 	}
 }
 
-// Start redraws the progress line every 100ms until Stop is called.
-func (p *progress) Start() {
+// isTerminal reports whether out is a terminal, so redirected output gets no color codes.
+func isTerminal(out io.Writer) bool {
+	f, ok := out.(*os.File)
+	if !ok {
+		return false
+	}
+
+	info, err := f.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
+}
+
+// Start redraws the progress line every 100ms until Stop is called, label says what is being done.
+func (p *progress) Start(label string) {
 	if p.level < verbositySpinner {
 		return
 	}
 
+	p.label = label
+	p.started = time.Now()
 	p.stop = make(chan struct{})
 	p.done = make(chan struct{})
 
@@ -84,7 +112,7 @@ func (p *progress) Start() {
 		defer ticker.Stop()
 
 		for i := 0; ; i++ {
-			p.draw(`-\|/`[i%4])
+			p.draw(spinnerFrames[i%len(spinnerFrames)])
 
 			select {
 			case <-p.stop:
@@ -131,21 +159,32 @@ func (p *progress) Error(err error) {
 	fmt.Fprintln(p.out, err)
 }
 
-func (p *progress) draw(spin byte) {
+func (p *progress) draw(spin rune) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if p.level < verbosityFiles {
-		fmt.Fprintf(p.out, "\r%c", spin)
-		return
+	elapsed := fmt.Sprintf("(%ds)", int(time.Since(p.started).Seconds()))
+	line := fmt.Sprintf("%s %s… %s", p.paint(colorSpinner, string(spin)), p.label, p.paint(colorDim, elapsed))
+
+	if p.level >= verbosityFiles {
+		current := ""
+		if c := p.current.Load(); c != nil {
+			current = shortenPath(*c, maxPathLength)
+		}
+
+		line += p.paint(colorDim, fmt.Sprintf(" · %d files · %s", p.count.Load(), current))
 	}
 
-	current := ""
-	if c := p.current.Load(); c != nil {
-		current = shortenPath(*c, maxPathLength)
+	fmt.Fprint(p.out, clearLine+line)
+}
+
+// paint colors s if the output is a terminal
+func (p *progress) paint(color, s string) string {
+	if !p.color {
+		return s
 	}
 
-	fmt.Fprintf(p.out, "%s%c %d files %s", clearLine, spin, p.count.Load(), current)
+	return color + s + colorReset
 }
 
 // shortenPath keeps the end of path, which names the file, if it is longer than max bytes.

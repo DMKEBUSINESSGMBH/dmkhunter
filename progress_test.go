@@ -42,7 +42,7 @@ func TestProgress(t *testing.T) {
 		p.File("/srv/first.php")
 		p.File("/srv/second.php")
 		// Start draws at once, so the output does not depend on timing
-		p.Start()
+		p.Start("Analyzing")
 		p.Error(errors.New("permission denied"))
 		p.Stop()
 		return out.String()
@@ -52,16 +52,33 @@ func TestProgress(t *testing.T) {
 		t.Errorf("quiet: expected only the error, got %q", out)
 	}
 
-	if out := run(verbositySpinner); strings.Contains(out, "second.php") || !strings.Contains(out, "permission denied\n") {
-		t.Errorf("spinner: expected spinner and error without files, got %q", out)
+	out := run(verbositySpinner)
+	if !strings.Contains(out, "· Analyzing… (0s)") || strings.Contains(out, "second.php") || !strings.Contains(out, "permission denied\n") {
+		t.Errorf("spinner: expected spinner, label and error without files, got %q", out)
 	}
 
-	out := run(verbosityFiles)
-	if !strings.Contains(out, "2 files /srv/second.php") || !strings.Contains(out, "permission denied\n") {
-		t.Errorf("files: expected count, current file and error, got %q", out)
+	out = run(verbosityFiles)
+	if !strings.Contains(out, "Analyzing… (0s) · 2 files · /srv/second.php") || !strings.Contains(out, "permission denied\n") {
+		t.Errorf("files: expected label, count, current file and error, got %q", out)
 	}
 	if !strings.HasSuffix(out, clearLine) {
 		t.Errorf("files: Stop should clear the progress line, got %q", out)
+	}
+	// a strings.Builder is no terminal
+	if strings.Contains(out, colorReset) {
+		t.Errorf("files: expected no color codes when not writing to a terminal, got %q", out)
+	}
+}
+
+func TestProgress_Color(t *testing.T) {
+	var out strings.Builder
+	p := newProgress(verbositySpinner, &out)
+	p.color = true
+	p.Start("Rescanning")
+	p.Stop()
+
+	if !strings.Contains(out.String(), colorSpinner+"·"+colorReset+" Rescanning…") {
+		t.Errorf("expected colored spinner, got %q", out.String())
 	}
 }
 

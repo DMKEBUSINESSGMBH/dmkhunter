@@ -311,7 +311,7 @@ func main() {
 			fail(err)
 		}
 
-		prog.Start()
+		prog.Start("Rescanning")
 		err := rescan(conf, prog)
 		prog.Stop()
 
@@ -319,7 +319,7 @@ func main() {
 			fail(err)
 		}
 	case "analyze":
-		prog.Start()
+		prog.Start("Analyzing")
 		stack, err := analyze(conf, prog)
 		prog.Stop()
 
