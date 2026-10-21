@@ -17,7 +17,7 @@ func (s StdOut) Send(stack model.ViolationStack) error {
 	}
 
 	writer := tablewriter.NewWriter(os.Stdout)
-	writer.SetHeader([]string{"Severity", "Message", "Path"})
+	writer.Header("Severity", "Message", "Path")
 
 	for _, v := range violations {
 		writer.Append([]string{
