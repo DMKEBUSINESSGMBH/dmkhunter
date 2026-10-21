@@ -24,9 +24,12 @@ const clearLine = "\r\033[K"
 // spinnerFrames pulse from a dot to a full star and back, "*" instead of "✳" because some fonts draw that one as a wide emoji
 var spinnerFrames = []rune("·✢*✶✻✽✻✶*✢")
 
+// spinnerInterval is the time between two frames, slow enough that the star pulses instead of flickering
+const spinnerInterval = 150 * time.Millisecond
+
 // colors for the progress line, only used when the output is a terminal
 const (
-	colorSpinner = "\033[38;2;215;119;87m" // Claude orange
+	colorSpinner = "\033[38;2;0;99;175m" // DMK blue #0063af
 	colorDim     = "\033[2m"
 	colorReset   = "\033[0m"
 )
@@ -96,7 +99,7 @@ func isTerminal(out io.Writer) bool {
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
-// Start redraws the progress line every 100ms until Stop is called, label says what is being done.
+// Start redraws the progress line every spinnerInterval until Stop is called, label says what is being done.
 func (p *progress) Start(label string) {
 	if p.level < verbositySpinner {
 		return
@@ -110,7 +113,7 @@ func (p *progress) Start(label string) {
 	go func() {
 		defer close(p.done)
 
-		ticker := time.NewTicker(100 * time.Millisecond)
+		ticker := time.NewTicker(spinnerInterval)
 		defer ticker.Stop()
 
 		for i := 0; ; i++ {
