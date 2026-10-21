@@ -2,31 +2,45 @@ package analyzer
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"github.com/DMKEBUSINESSGMBH/dmkhunter/model"
 	"go.etcd.io/bbolt"
+	"time"
 )
 
+var bucketName = []byte("file_hashes")
+
+// DatabaseAnalyzer keeps the database open until Close, it is safe for concurrent use.
 type DatabaseAnalyzer struct {
 	database *bbolt.DB
-	name     string
 }
 
 func NewDatabaseAnalyzer(p string) (*DatabaseAnalyzer, error) {
-	db, err := bbolt.Open(p, 0600, nil)
-	defer db.Close()
+	db, err := bbolt.Open(p, 0600, &bbolt.Options{ReadOnly: true, Timeout: 5 * time.Second})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not open database %s: %w", p, err)
+	}
+
+	err = db.View(func(tx *bbolt.Tx) error {
+		if tx.Bucket(bucketName) == nil {
+			return errors.New("no file hashes found, run rescan first")
+		}
+		return nil
+	})
+
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("database %s: %w", p, err)
 	}
 
 	return &DatabaseAnalyzer{
 		database: db,
-		name:     p,
 	}, nil
 }
 
-func (d DatabaseAnalyzer) Analyze(file model.File, stack *model.ViolationStack) error {
+func (d *DatabaseAnalyzer) Analyze(file model.File, stack *model.ViolationStack) error {
 	hash, err := file.Hash()
 
 	if err != nil {
@@ -39,16 +53,8 @@ func (d DatabaseAnalyzer) Analyze(file model.File, stack *model.ViolationStack) 
 		return err
 	}
 
-	// TODO: find better way to not reopen db connection on every file
-	d.database, err = bbolt.Open(d.name, 0600, nil)
-	defer d.database.Close()
-	if err != nil {
-		return err
-	}
-
 	return d.database.View(func(tx *bbolt.Tx) error {
-		b := tx.Bucket([]byte("file_hashes"))
-		data := b.Get([]byte(file.Path))
+		data := tx.Bucket(bucketName).Get([]byte(file.Path))
 
 		if data == nil {
 			stack.Add(model.Violation{
@@ -60,7 +66,7 @@ func (d DatabaseAnalyzer) Analyze(file model.File, stack *model.ViolationStack) 
 			return nil
 		}
 
-		if 0 != bytes.Compare(data, hash) {
+		if !bytes.Equal(data, hash) {
 			stack.Add(model.Violation{
 				Filepath: file.Path,
 				Message:  fmt.Sprintf("The file %s has been changed!", file.Path),
@@ -72,6 +78,6 @@ func (d DatabaseAnalyzer) Analyze(file model.File, stack *model.ViolationStack) 
 	})
 }
 
-func (d DatabaseAnalyzer) Close() {
-	d.database.Close()
+func (d *DatabaseAnalyzer) Close() error {
+	return d.database.Close()
 }

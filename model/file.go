@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"io"
 	"os"
+	"sync"
 )
 
 type File struct {
@@ -11,30 +12,38 @@ type File struct {
 	File os.File
 }
 
-func NewFile(p string) (*File, error) {
-	f, err := os.Open(p)
-	defer f.Close()
+// hashBufferSize is the read buffer per Hash call, larger than io.Copy's 32KB default.
+const hashBufferSize = 256 * 1024
 
-	if err != nil {
-		return nil, err
-	}
+var hashBuffers = sync.Pool{
+	New: func() any {
+		b := make([]byte, hashBufferSize)
+		return &b
+	},
+}
 
+// NewFile does not touch the filesystem, the file is only opened when it is hashed.
+func NewFile(p string) *File {
 	return &File{
 		Path: p,
-	}, nil
+	}
 }
 
 func (file File) Hash() ([]byte, error) {
 	f, err := os.Open(file.Path)
-	defer f.Close()
 
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
+
+	buf := hashBuffers.Get().(*[]byte)
+	defer hashBuffers.Put(buf)
 
 	h := md5.New()
 
-	if _, err := io.Copy(h, f); err != nil {
+	// wrap f so io.CopyBuffer can't bypass buf via (*os.File).WriteTo
+	if _, err := io.CopyBuffer(h, struct{ io.Reader }{f}, *buf); err != nil {
 		return nil, err
 	}
 

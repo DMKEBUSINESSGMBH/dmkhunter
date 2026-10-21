@@ -3,8 +3,6 @@ package scanner
 import (
 	"github.com/DMKEBUSINESSGMBH/dmkhunter/model"
 	"io/fs"
-	"log"
-	"os"
 	"path/filepath"
 	"regexp"
 )
@@ -21,76 +19,78 @@ func NewScanner(paths []string, ignores *[]string) Scanner {
 	}
 }
 
+// Walk calls fn for every regular file in the configured paths that is not ignored.
+// Files are passed as soon as they are found, so callers can start working before the walk is done.
+func (s Scanner) Walk(fn func(f *model.File) error) error {
+	ignores, err := s.compileIgnores()
+
+	if err != nil {
+		return err
+	}
+
+	for _, root := range s.paths {
+		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				// a missing root is an error, unreadable entries below it are skipped
+				if d == nil {
+					return err
+				}
+				return nil
+			}
+
+			// symlinks are not regular files, so they are skipped here as well
+			if !d.Type().IsRegular() {
+				return nil
+			}
+
+			if pathIsIgnored(ignores, path) {
+				return nil
+			}
+
+			return fn(model.NewFile(path))
+		})
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (s Scanner) Scan() map[string]*model.File {
 	files := make(map[string]*model.File)
 
-	for _, path := range s.paths {
-		filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
-			if d.IsDir() || d.Type().IsRegular() == false {
-				return nil
-			}
+	s.Walk(func(f *model.File) error {
+		files[f.Path] = f
 
-			if s.pathIsIgnored(path) {
-				return nil
-			}
-
-			// test for symlinks
-			newPath, err := evaluateSymLink(path)
-			if err != nil {
-				return err
-			}
-			if len(newPath) > 0 {
-				path = newPath
-			}
-			f, err := model.NewFile(path)
-
-			if err != nil {
-				return err
-			}
-
-			files[path] = f
-
-			return nil
-		})
-	}
+		return nil
+	})
 
 	return files
 }
 
-func evaluateSymLink(path string) (string, error) {
-	fileInfo, err := os.Stat(path)
-
-	if err != nil {
-		return "", err
-	}
-
-	if fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink {
-		evalpath, err := filepath.EvalSymlinks(path)
-		if err != nil {
-			return "", err
-		}
-		evalfileStat, err := os.Stat(evalpath)
-
-		if err != nil || evalfileStat.IsDir() {
-			return "", err
-		}
-		path = evalpath
-	}
-
-	return "", nil
-}
-
-// test if file matches ignore list
-func (s Scanner) pathIsIgnored(path string) bool {
+func (s Scanner) compileIgnores() ([]*regexp.Regexp, error) {
 	if s.Ignores == nil {
-		return false
+		return nil, nil
 	}
+
+	ignores := make([]*regexp.Regexp, 0, len(*s.Ignores))
 
 	for _, pattern := range *s.Ignores {
 		re, err := regexp.Compile(pattern)
 		if err != nil {
-			log.Fatal(err)
+			return nil, err
 		}
+		ignores = append(ignores, re)
+	}
+
+	return ignores, nil
+}
+
+// test if file matches ignore list
+func pathIsIgnored(ignores []*regexp.Regexp, path string) bool {
+	for _, re := range ignores {
 		if re.MatchString(path) {
 			return true
 		}

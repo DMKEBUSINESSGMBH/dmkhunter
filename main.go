@@ -9,8 +9,16 @@ import (
 	scanner2 "github.com/DMKEBUSINESSGMBH/dmkhunter/scanner"
 	"go.etcd.io/bbolt"
 	"os"
+	"runtime"
+	"sort"
+	"sync"
 	"time"
 )
+
+// number of entries written per bbolt transaction during rescan
+const writeBatchSize = 10000
+
+var workers = runtime.NumCPU()
 
 func rescan(conf *config.Config) {
 
@@ -32,61 +40,121 @@ func rescan(conf *config.Config) {
 	}
 }
 
+type fileHash struct {
+	path string
+	hash []byte
+}
+
 func saveHashes(databasename string, scanner scanner2.Scanner) error {
-	db, _ := bbolt.Open(databasename, 0600, nil)
+	db, err := bbolt.Open(databasename, 0600, &bbolt.Options{Timeout: 5 * time.Second})
+
+	if err != nil {
+		return err
+	}
 	defer db.Close()
 
-	return db.Batch(func(tx *bbolt.Tx) error {
-		b, _ := tx.CreateBucketIfNotExists([]byte("file_hashes"))
+	err = db.Update(func(tx *bbolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte("file_hashes"))
+		return err
+	})
 
-		for p, f := range scanner.Scan() {
-			hash, err := f.Hash()
+	if err != nil {
+		return err
+	}
 
-			if err != nil {
-				panic(err)
+	files := make(chan *model.File, 1024)
+	hashes := make(chan fileHash, 1024)
+	var wg sync.WaitGroup
+
+	for range workers {
+		wg.Go(func() {
+			for f := range files {
+				hash, err := f.Hash()
+
+				if err != nil {
+					fmt.Fprintln(os.Stderr, err)
+					continue
+				}
+
+				hashes <- fileHash{path: f.Path, hash: hash}
 			}
+		})
+	}
 
-			if err := b.Put([]byte(p), hash); err != nil {
-				return err
-			}
+	var walkErr error
+
+	go func() {
+		walkErr = scanner.Walk(func(f *model.File) error {
+			files <- f
+			return nil
+		})
+		close(files)
+		wg.Wait()
+		close(hashes)
+	}()
+
+	var writeErr error
+	batch := make([]fileHash, 0, writeBatchSize)
+
+	flush := func() {
+		if writeErr != nil || len(batch) == 0 {
+			return
 		}
 
-		//fmt.Printf("\n============================\n%v", b.Bucket([]byte("files")))
-		//json.NewEncoder(os.Stderr).Encode(b.Stats())
+		// bbolt inserts sorted keys faster
+		sort.Slice(batch, func(i, j int) bool { return batch[i].path < batch[j].path })
 
-		//tx.Bucket([]byte("file_hashes")).ForEach(func(k, v []byte) error {
-		//	fmt.Printf("%s _ %s\n", k, hex.EncodeToString(v))
-		//
-		//	return nil
-		//})
+		writeErr = db.Update(func(tx *bbolt.Tx) error {
+			b := tx.Bucket([]byte("file_hashes"))
 
-		return nil
-	})
+			for _, e := range batch {
+				if err := b.Put([]byte(e.path), e.hash); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		})
+		batch = batch[:0]
+	}
+
+	// keep draining after a write error so the workers don't block
+	for e := range hashes {
+		batch = append(batch, e)
+
+		if len(batch) == writeBatchSize {
+			flush()
+		}
+	}
+	flush()
+
+	if walkErr != nil {
+		return walkErr
+	}
+
+	return writeErr
 }
 
 func analyze(conf *config.Config) {
 	stack := model.ViolationStack{}
 
 	for _, preset := range conf.Presets {
-		scanner := scanner2.NewScanner(preset.Paths, &preset.Ignores)
-		var analyzers []analyzer.Analyzer
-
-		if preset.Database != nil {
-			dbanalyzer, err := analyzer.NewDatabaseAnalyzer(*preset.Database)
-
-			if err != nil {
-				return
-			}
-			analyzers = append(analyzers, dbanalyzer)
+		if preset.Database == nil {
+			continue
 		}
 
-		for _, paths := range scanner.Scan() {
-			for _, a := range analyzers {
-				err := a.Analyze(*paths, &stack)
-				if err != nil {
-					fmt.Println(err)
-				}
-			}
+		dbanalyzer, err := analyzer.NewDatabaseAnalyzer(*preset.Database)
+
+		if err != nil {
+			panic(err)
+		}
+
+		scanner := scanner2.NewScanner(preset.Paths, &preset.Ignores)
+		err = analyzeFiles(scanner, []analyzer.Analyzer{dbanalyzer}, &stack)
+		dbanalyzer.Close()
+
+		if err != nil {
+			panic(err)
 		}
 	}
 
@@ -97,6 +165,41 @@ func analyze(conf *config.Config) {
 			panic(err)
 		}
 	}
+}
+
+// analyzeFiles runs the analyzers on all scanned files in parallel and adds the violations to stack.
+func analyzeFiles(scanner scanner2.Scanner, analyzers []analyzer.Analyzer, stack *model.ViolationStack) error {
+	files := make(chan *model.File, 1024)
+	// one stack per worker, ViolationStack is not safe for concurrent use
+	stacks := make([]model.ViolationStack, workers)
+	var wg sync.WaitGroup
+
+	for i := range stacks {
+		wg.Go(func() {
+			for f := range files {
+				for _, a := range analyzers {
+					if err := a.Analyze(*f, &stacks[i]); err != nil {
+						fmt.Println(err)
+					}
+				}
+			}
+		})
+	}
+
+	err := scanner.Walk(func(f *model.File) error {
+		files <- f
+		return nil
+	})
+	close(files)
+	wg.Wait()
+
+	for i := range stacks {
+		for _, v := range stacks[i].All() {
+			stack.Add(v)
+		}
+	}
+
+	return err
 }
 
 func main() {
@@ -110,12 +213,12 @@ func main() {
 		panic(err)
 	}
 
-	if len(os.Args) <= 1 {
+	if flag.NArg() == 0 {
 		help()
 		os.Exit(0)
 	}
 
-	switch os.Args[1] {
+	switch flag.Arg(0) {
 	case "scan":
 		//
 	case "rescan":
