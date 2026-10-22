@@ -13,7 +13,7 @@ func TestScanner_Scan(t *testing.T) {
 	expectedPaths := map[string]int{
 		"testdata/dir1/LICENSE":      1,
 		"testdata/dir1/.hiddenfile":  2,
-		"testdata/dir2/go.mod":       3,
+		"testdata/dir2/file.txt":     3,
 		"testdata/.hunter-test.conf": 4,
 	}
 
@@ -43,11 +43,11 @@ func TestScanner_Scan(t *testing.T) {
 func TestScanner_IgnoresMatchRelativePath(t *testing.T) {
 	tests := map[string][]string{
 		// anchored to the scanned directory
-		`^dir1/`: {"testdata/dir2/go.mod", "testdata/.hunter-test.conf", "testdata/invalid.tmp"},
+		`^dir1/`: {"testdata/dir2/file.txt", "testdata/.hunter-test.conf", "testdata/invalid.tmp"},
 		// files directly in the scanned directory only
-		`^[^/]+$`: {"testdata/dir1/LICENSE", "testdata/dir1/.hiddenfile", "testdata/dir2/go.mod"},
+		`^[^/]+$`: {"testdata/dir1/LICENSE", "testdata/dir1/.hiddenfile", "testdata/dir2/file.txt"},
 		// absolute paths are not matched anymore
-		`^testdata/`: {"testdata/dir1/LICENSE", "testdata/dir1/.hiddenfile", "testdata/dir2/go.mod", "testdata/.hunter-test.conf", "testdata/invalid.tmp"},
+		`^testdata/`: {"testdata/dir1/LICENSE", "testdata/dir1/.hiddenfile", "testdata/dir2/file.txt", "testdata/.hunter-test.conf", "testdata/invalid.tmp"},
 	}
 
 	for pattern, expected := range tests {
