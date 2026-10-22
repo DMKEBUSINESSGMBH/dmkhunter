@@ -2,8 +2,19 @@
 # a list of directories you want to watch
 paths = ['/your/path/to/watch']
 
-# must be valid perl regex format
-ignores = ['\*\.tmp']
+# Go regular expressions, matched against the path relative to the watched directory,
+# e.g. "var/log/dev.log" for /your/path/to/watch/var/log/dev.log.
+# Only ignore file types that can't be executed, so new .php files are still reported.
+ignores = [
+  # var/: caches, logs, sessions and locks without file extension
+  '^([^/]+/)?var/(.*/)?[^/.]+$',
+  # var/: logs, session, cache metadata and test databases
+  '^([^/]+/)?var/.*\.(log|lock|meta|mocksess|cache|sqlite|legacy|offset|map|xml|xlf|json|csv|txt|gz)$',
+  # TYPO3 cache with generated PHP: var/cache/{code,data} (composer mode) and typo3temp/var/cache (legacy mode)
+  '^([^/]+/)?((public|web|htdocs)/)?(typo3temp/)?var/cache/(code|data)/',
+  # upload and temp dirs in the web root: images, documents, media and fonts
+  '(?i)^([^/]+/)?(public|htdocs|web)/(uploads|fileadmin|typo3temp|tmp|media)/.*\.(jpe?g|png|gif|webp|avif|bmp|ico|tiff?|pdf|docx?|xlsx?|pptx?|odt|ods|csv|txt|zip|mp4|mp3|webm|woff2?|ttf|eot|otf)$',
+]
 
 # unused
 clamav = ""

@@ -20,6 +20,7 @@ func NewScanner(paths []string, ignores *[]string) Scanner {
 }
 
 // Walk calls fn for every regular file in the configured paths that is not ignored.
+// Ignore patterns are matched against the path relative to the configured path, e.g. "var/log/dev.log".
 // Files are passed as soon as they are found, so callers can start working before the walk is done.
 func (s Scanner) Walk(fn func(f *model.File) error) error {
 	ignores, err := s.compileIgnores()
@@ -43,7 +44,7 @@ func (s Scanner) Walk(fn func(f *model.File) error) error {
 				return nil
 			}
 
-			if pathIsIgnored(ignores, path) {
+			if pathIsIgnored(ignores, relativePath(root, path)) {
 				return nil
 			}
 
@@ -86,6 +87,17 @@ func (s Scanner) compileIgnores() ([]*regexp.Regexp, error) {
 	}
 
 	return ignores, nil
+}
+
+// relativePath returns path relative to the scanned root with "/" separators, ignore patterns are matched against it.
+func relativePath(root, path string) string {
+	rel, err := filepath.Rel(root, path)
+
+	if err != nil {
+		return filepath.ToSlash(path)
+	}
+
+	return filepath.ToSlash(rel)
 }
 
 // test if file matches ignore list
