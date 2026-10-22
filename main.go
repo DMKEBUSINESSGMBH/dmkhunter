@@ -353,14 +353,14 @@ func main() {
 }
 
 func help() {
-	help_info := `DMKHunter help:
+	help_info := `DMKhunter help:
 
 usage: dmkhunter [-config <file>] [-v|-vv|-vvv] <argument>
 
 available arguments:
 ------------------------------------------------------------------------------
-rescan	- rescan the configured directories and rewrite md5 hashes to database
 scan	-
+rescan	- rescan the configured directories and rewrite md5 hashes to database
 analyze	- check all hashes for files in configured directories and report
 list	- show stored hashes as a table, options:
 	  -prefix <path>   only paths starting with <path>
