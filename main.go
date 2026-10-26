@@ -22,6 +22,10 @@ import (
 	"go.etcd.io/bbolt"
 )
 
+// version is printed by -version and in the help, release builds can set it with
+// go build -ldflags "-X main.version=1.2.3"
+var version = "0.1.0-pre2"
+
 // number of entries written per bbolt transaction during rescan
 const writeBatchSize = 10000
 
@@ -288,14 +292,22 @@ func splitGlobalFlags(args []string, globals *flag.FlagSet) (flags []string, res
 
 func main() {
 	var configFile string
+	var showVersion bool
 	verbosity := verbosityQuiet
 	flag.StringVar(&configFile, "config", ".hunter.conf", "")
+	flag.BoolVar(&showVersion, "version", false, "print the version and exit")
 	flag.Var(verbosityFlag{&verbosity, 1}, "v", "show a spinner, -v -v also shows the current file")
 	flag.Var(verbosityFlag{&verbosity, 2}, "vv", "show a spinner and the current file")
 	flag.Var(verbosityFlag{&verbosity, 3}, "vvv", "like -vv plus hashes per second and the runtime")
 
 	globals, args := splitGlobalFlags(os.Args[1:], flag.CommandLine)
 	flag.CommandLine.Parse(globals)
+
+	// before loading the config, the version must be printable without one
+	if showVersion {
+		fmt.Println("dmkhunter", version)
+		os.Exit(0)
+	}
 
 	conf, err := config.LoadConfiguration(configFile)
 
@@ -353,9 +365,10 @@ func main() {
 }
 
 func help() {
-	help_info := `DMKhunter help:
+	help_info := `DMKhunter ` + version + ` help:
 
 usage: dmkhunter [-config <file>] [-v|-vv|-vvv] <argument>
+       dmkhunter -version
 
 available arguments:
 ------------------------------------------------------------------------------

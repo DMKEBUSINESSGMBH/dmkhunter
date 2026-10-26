@@ -28,6 +28,12 @@ Deleted files are not reported.
 go build -o dmkhunter .
 ```
 
+The version is set in `main.go`, a release build can override it:
+
+```sh
+go build -ldflags "-X main.version=0.1.0" -o dmkhunter .
+```
+
 Copy the binary to the server and create a `.hunter.conf` next to it, see
 [Configuration](#configuration).
 
@@ -52,6 +58,7 @@ as `dmkhunter -v analyze`.
 | `-v`             | show a spinner while working                                    |
 | `-vv`            | show the spinner, the number of files and the current file      |
 | `-vvv`           | like `-vv` plus hashes per second, and the runtime when done    |
+| `-version`       | print the version and exit, also works without a config         |
 
 Without a verbosity flag only errors and the analyze report are printed, which
 is what you want for cron jobs. The progress line goes to stderr.
