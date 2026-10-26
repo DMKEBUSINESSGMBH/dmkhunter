@@ -135,7 +135,15 @@ ignores and database.
 | `ignores`  | regular expressions of files to skip, see below                   |
 | `clamav`   | unused                                                            |
 
-Symlinks and other non-regular files are skipped.
+Symlinks to files and directories are followed, also when they point outside
+the configured path, but every file is hashed only once. The real directories
+of all configured paths are scanned before any link is followed, so a file is
+reported under its real path when that is inside a configured path, otherwise
+under the first link that leads to it. `ignores` are matched against that path,
+a file that is ignored there is still reported under another link that is not
+ignored. Link loops and broken links are skipped, a configured path that is a
+broken link is an error. Sockets, devices and pipes are skipped. Hard links
+are separate paths and hashed for each of them.
 
 ### Ignore patterns
 
