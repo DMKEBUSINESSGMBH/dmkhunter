@@ -59,13 +59,3 @@ func (file File) Info() (*os.FileInfo, error) {
 
 	return &s, err
 }
-
-func (file File) IsSymlink() (bool, error) {
-	fileInfo, err := file.Info()
-
-	if err != nil {
-		return false, err
-	}
-
-	return (*fileInfo).Mode()&os.ModeSymlink == os.ModeSymlink, nil
-}
