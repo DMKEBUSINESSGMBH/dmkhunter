@@ -2,16 +2,32 @@ name: Go Release
 
 on:
   release:
-    types: [created]
+    types: [published, created]
+
+permissions:
+  contents: write
 
 jobs:
-  release-linux-amd64:
-    name: release linux/amd64
+  releases-matrix:
+    name: Release Go Binary
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, darwin]
+        goarch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v3
-      - uses: wangyoucao577/go-release-action@v1.32
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build and Release Binary
+        uses: wangyoucao577/go-release-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          goos: linux
-          goarch: amd64
+          goos: ${{ matrix.goos }}
+          goarch: ${{ matrix.goarch }}
+          goversion: "go.mod"
+          binary_name: "dmkhunter"
+          extra_files: LICENSE Readme.md
+          ldflags: "-s -w -X main.version=${{ github.event.release.tag_name || github.ref_name }}"
+          md5sum: TRUE
+          sha256sum: TRUE
