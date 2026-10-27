@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -22,9 +23,26 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-// version is printed by -version and in the help, release builds can set it with
-// go build -ldflags "-X main.version=1.2.3"
-var version = "0.1.0-pre2"
+// version is printed by -version and in the help. The release workflow sets it to
+// the GitHub release tag with go build -ldflags "-X main.version=v1.2.3"
+var version = ""
+
+func init() {
+	if version == "" {
+		version = buildVersion()
+	}
+}
+
+// buildVersion is the fallback for builds without -ldflags: the version Go stamps
+// from the git tag (a pseudo-version between tags), or "dev" without one
+func buildVersion() string {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if v := info.Main.Version; v != "" && v != "(devel)" {
+			return v
+		}
+	}
+	return "dev"
+}
 
 // number of entries written per bbolt transaction during rescan
 const writeBatchSize = 10000

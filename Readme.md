@@ -28,7 +28,8 @@ Deleted files are not reported.
 go build -o dmkhunter .
 ```
 
-The version is set in `main.go`, a release build can override it:
+Release builds get the version from the GitHub release tag, other builds show
+the version Go derives from git. To set it by hand:
 
 ```sh
 go build -ldflags "-X main.version=0.1.0" -o dmkhunter .
