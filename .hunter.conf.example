@@ -10,6 +10,8 @@ ignores = [
   '^([^/]+/)?var/(.*/)?[^/.]+$',
   # var/: logs, session, cache metadata and test databases
   '^([^/]+/)?var/.*\.(log|lock|meta|mocksess|cache|sqlite|legacy|offset|map|xml|xlf|json|csv|txt|gz)$',
+  # var/charset: generated charset tables only
+  '^([^/]+/)?var/charset/.*\.tbl$',
   # TYPO3 cache with generated PHP: var/cache/{code,data} (composer mode) and typo3temp/var/cache (legacy mode)
   '^([^/]+/)?((public|web|htdocs)/)?(typo3temp/)?var/cache/(code|data)/',
   # upload and temp dirs in the web root: images, documents, media and fonts
