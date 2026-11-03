@@ -48,9 +48,9 @@ func LoadConfiguration(p string) (*Config, error) {
 	return &config, nil
 }
 
-func (c Config) GetReporters() reporter.ChainReporter {
+func (c Config) GetReporters(pretty bool) reporter.ChainReporter {
 	chain := reporter.ChainReporter{}
-	chain.Add(reporter.StdOut{})
+	chain.Add(reporter.StdOut{Pretty: pretty})
 
 	if c.Webhook != nil {
 		chain.Add(reporter.NewWebhookReporter(c.Webhook.Url))

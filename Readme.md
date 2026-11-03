@@ -4,7 +4,7 @@
 
 DMKhunter detects new and changed files in your web projects. It stores an MD5
 hash of every file in a database and reports every file that was added or
-modified since then, by printing a table, sending a mail or calling a webhook.
+modified since then, by printing a plain-text report, sending a mail or calling a webhook.
 
 It is meant for hosting environments where you can't install system tools. If
 you can install packages, use `rkhunter` and `clamav` as well.
@@ -41,7 +41,7 @@ Copy the binary to the server and create a `.hunter.conf` next to it, see
 ## Usage
 
 ```
-dmkhunter [-config <file>] [-v|-vv|-vvv] <command>
+dmkhunter [-config <file>] [--pretty] [-v|-vv|-vvv] <command>
 ```
 
 | Command   | Description                                                           |
@@ -56,6 +56,7 @@ as `dmkhunter -v analyze`.
 | Flag             | Description                                                     |
 |------------------|-----------------------------------------------------------------|
 | `-config <file>` | configuration file, default `.hunter.conf` in the current directory |
+| `--pretty`       | print the analyze report as a table                             |
 | `-v`             | show a spinner while working                                    |
 | `-vv`            | show the spinner, the number of files and the current file      |
 | `-vvv`           | like `-vv` plus hashes per second, and the runtime when done    |
@@ -202,7 +203,10 @@ Invalid patterns abort `rescan` and `analyze` with exit code 2.
 
 ### Reporters
 
-The report is always printed to stdout as a table. Additionally:
+The report is printed to stdout as plain text, with each violation's severity,
+message and path on separate lines. Violations are grouped in `error`, `warn`,
+`info` order; other severity values follow alphabetically. Use `--pretty` to
+print the grouped report as a table instead. Additionally:
 
 **SMTP** (`[smtp]`) sends one mail to all `recipients`, authenticated with
 CRAM-MD5. The subject is `Alert from <topic> (<n> changes)`, `topic` defaults

@@ -311,9 +311,11 @@ func splitGlobalFlags(args []string, globals *flag.FlagSet) (flags []string, res
 func main() {
 	var configFile string
 	var showVersion bool
+	var pretty bool
 	verbosity := verbosityQuiet
 	flag.StringVar(&configFile, "config", ".hunter.conf", "")
 	flag.BoolVar(&showVersion, "version", false, "print the version and exit")
+	flag.BoolVar(&pretty, "pretty", false, "print the analyze report as a table")
 	flag.Var(verbosityFlag{&verbosity, 1}, "v", "show a spinner, -v -v also shows the current file")
 	flag.Var(verbosityFlag{&verbosity, 2}, "vv", "show a spinner and the current file")
 	flag.Var(verbosityFlag{&verbosity, 3}, "vvv", "like -vv plus hashes per second and the runtime")
@@ -366,7 +368,7 @@ func main() {
 		}
 
 		if stack.Count() > 0 {
-			reporters := conf.GetReporters()
+			reporters := conf.GetReporters(pretty)
 
 			if err := reporters.Send(stack); err != nil {
 				fail(err)
@@ -385,7 +387,7 @@ func main() {
 func help() {
 	help_info := `DMKhunter ` + version + ` help:
 
-usage: dmkhunter [-config <file>] [-v|-vv|-vvv] <argument>
+usage: dmkhunter [-config <file>] [--pretty] [-v|-vv|-vvv] <argument>
        dmkhunter -version
 
 available arguments:
@@ -398,6 +400,10 @@ list	- show stored hashes as a table, options:
 	  -contains <text> only paths containing <text>
 	  -limit <n>       show at most <n> records
 	  -db <file>       read <file> instead of the configured databases
+
+output:
+------------------------------------------------------------------------------
+--pretty - print the analyze report as a table
 
 verbosity (progress goes to stderr):
 ------------------------------------------------------------------------------

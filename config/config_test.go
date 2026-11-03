@@ -47,13 +47,15 @@ func TestConfig_GetReporters(t *testing.T) {
 		Webhook: nil,
 	}
 
-	actualRouter := conf.GetReporters()
+	for _, pretty := range []bool{false, true} {
+		actualRouter := conf.GetReporters(pretty)
 
-	expectedReporter := reporter.ChainReporter{}
-	expectedReporter.Add(reporter.StdOut{})
+		expectedReporter := reporter.ChainReporter{}
+		expectedReporter.Add(reporter.StdOut{Pretty: pretty})
 
-	if !reflect.DeepEqual(actualRouter, expectedReporter) {
-		t.Errorf("returned router not expected: %#v", actualRouter)
+		if !reflect.DeepEqual(actualRouter, expectedReporter) {
+			t.Errorf("returned router not expected for pretty=%t: %#v", pretty, actualRouter)
+		}
 	}
 }
 

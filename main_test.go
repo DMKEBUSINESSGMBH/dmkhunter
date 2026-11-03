@@ -1,10 +1,12 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -139,4 +141,83 @@ func TestSplitGlobalFlags(t *testing.T) {
 			t.Errorf("%q: expected verbosity %d and config %q, got %d and %q", test.args, test.verbosity, test.configFile, verbosity, configFile)
 		}
 	}
+}
+
+func TestAnalyzeOutputFormats(t *testing.T) {
+	root := t.TempDir()
+	database := filepath.Join(t.TempDir(), "hunter.db")
+	confPath := filepath.Join(t.TempDir(), "hunter.conf")
+	quiet := newProgress(verbosityQuiet, io.Discard)
+	scanner := scanner2.NewScanner([]string{root}, &[]string{})
+	if err := saveHashes(database, scanner, quiet); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(root, "new.php")
+	if err := os.WriteFile(file, []byte("new"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	configuration := fmt.Sprintf("[[Presets]]\npaths = [%q]\ndatabase = %q\n", root, database)
+	if err := os.WriteFile(confPath, []byte(configuration), 0600); err != nil {
+		t.Fatal(err)
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name   string
+		args   []string
+		pretty bool
+	}{
+		{name: "default text", args: []string{"analyze"}},
+		{name: "pretty before command", args: []string{"--pretty", "analyze"}, pretty: true},
+		{name: "pretty after command", args: []string{"analyze", "--pretty"}, pretty: true},
+		{name: "pretty disabled", args: []string{"analyze", "--pretty=false"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := append([]string{"-test.run=^TestCLIHelperProcess$", "--", "-config", confPath}, tt.args...)
+			cmd := exec.Command(executable, args...)
+			cmd.Env = append(os.Environ(), "DMKHUNTER_CLI_HELPER=1")
+			output, err := cmd.Output()
+			var exitErr *exec.ExitError
+			if !errors.As(err, &exitErr) || exitErr.ExitCode() != exitViolations {
+				t.Fatalf("analyze error = %v, output = %q", err, output)
+			}
+
+			if tt.pretty {
+				path := file
+				if chars := []rune(path); len(chars) > 50 {
+					path = "…" + string(chars[len(chars)-49:])
+				}
+				for _, part := range []string{"┌", "SEVERITY", "MESSAGE", "PATH", "New file detected: new.php", path} {
+					if !strings.Contains(string(output), part) {
+						t.Errorf("table output is missing %q: %s", part, output)
+					}
+				}
+			} else {
+				want := "Severity: error\nMessage: New file detected: new.php\nPath: " + file + "\n"
+				if string(output) != want {
+					t.Errorf("text output = %q, want %q", output, want)
+				}
+			}
+		})
+	}
+}
+
+func TestCLIHelperProcess(t *testing.T) {
+	if os.Getenv("DMKHUNTER_CLI_HELPER") != "1" {
+		return
+	}
+	for i, arg := range os.Args {
+		if arg == "--" {
+			os.Args = append([]string{"dmkhunter"}, os.Args[i+1:]...)
+			flag.CommandLine = flag.NewFlagSet("dmkhunter", flag.ExitOnError)
+			main()
+			return
+		}
+	}
+	t.Fatal("missing CLI arguments")
 }
