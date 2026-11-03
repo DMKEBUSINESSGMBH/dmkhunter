@@ -62,7 +62,7 @@ func TestProgress(t *testing.T) {
 	}
 
 	out = run(verbosityFiles)
-	if !strings.Contains(out, "Analyzing… (0s) · 2 files · /srv/second.php") || !strings.Contains(out, "permission denied\n") {
+	if !strings.Contains(out, "Analyzing… (0s) · 2 files\n"+clearLine+"/srv/second.php") || !strings.Contains(out, "permission denied\n") {
 		t.Errorf("files: expected label, count, current file and error, got %q", out)
 	}
 	if !strings.HasSuffix(out, clearLine) {
@@ -121,7 +121,7 @@ func TestProgress_Stats(t *testing.T) {
 	}
 
 	out := run(verbosityStats)
-	if !strings.Contains(out, " · 2 files · ") || !strings.Contains(out, " hashes/s · /srv/second.php") {
+	if !strings.Contains(out, " · 2 files · ") || !strings.Contains(out, " hashes/s\n"+clearLine+"/srv/second.php") {
 		t.Errorf("stats: expected count, rate and current file, got %q", out)
 	}
 	if !strings.Contains(out, "Analyzing done: 2 files hashed in ") || !strings.HasSuffix(out, " hashes/s\n") {
@@ -130,6 +130,27 @@ func TestProgress_Stats(t *testing.T) {
 
 	if out := run(verbosityFiles); strings.Contains(out, "hashes/s") || strings.Contains(out, "done:") {
 		t.Errorf("files: expected no stats, got %q", out)
+	}
+}
+
+func TestProgress_RedrawAndError(t *testing.T) {
+	var out strings.Builder
+	p := newProgress(verbosityFiles, &out)
+	p.label = "Analyzing"
+	p.started = time.Now()
+	p.File("/long/path")
+	p.draw('·')
+	p.File("/short")
+	p.draw('*')
+	p.Error(errors.New("failed"))
+	p.draw('·')
+
+	got := out.String()
+	if !strings.Contains(got, "/long/path"+clearLine+"\033[1A"+clearLine+"* Analyzing") {
+		t.Errorf("redraw should clear both lines: %q", got)
+	}
+	if !strings.Contains(got, "/short"+clearLine+"\033[1A"+clearLine+"failed\n"+clearLine+"· Analyzing") {
+		t.Errorf("error should clear both lines and allow a fresh redraw: %q", got)
 	}
 }
 

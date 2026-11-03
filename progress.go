@@ -35,7 +35,7 @@ const (
 )
 
 // maxPathLength keeps the progress line on one terminal line
-const maxPathLength = 100
+const maxPathLength = 80
 
 // verbosityFlag adds step to level every time the flag is given, so -v -v is the same as -vv.
 type verbosityFlag struct {
@@ -78,6 +78,7 @@ type progress struct {
 	started time.Time
 	stop    chan struct{}
 	done    chan struct{}
+	drawn   bool
 }
 
 func newProgress(level int, out io.Writer) *progress {
@@ -140,7 +141,7 @@ func (p *progress) Stop() {
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	fmt.Fprint(p.out, clearLine)
+	p.clear()
 
 	if p.level >= verbosityStats {
 		elapsed := time.Since(p.started)
@@ -183,7 +184,7 @@ func (p *progress) Error(err error) {
 	defer p.mu.Unlock()
 
 	if p.level >= verbositySpinner {
-		fmt.Fprint(p.out, clearLine)
+		p.clear()
 	}
 	fmt.Fprintln(p.out, err)
 }
@@ -206,10 +207,22 @@ func (p *progress) draw(spin rune) {
 			stats = " · " + p.rate(time.Since(p.started))
 		}
 
-		line += p.paint(colorDim, fmt.Sprintf(" · %d files%s · %s", p.count.Load(), stats, current))
+		line += p.paint(colorDim, fmt.Sprintf(" · %d files%s", p.count.Load(), stats))
+		line += "\n" + clearLine + p.paint(colorDim, current)
 	}
 
-	fmt.Fprint(p.out, clearLine+line)
+	p.clear()
+	fmt.Fprint(p.out, line)
+	p.drawn = true
+}
+
+// clear removes the previously drawn progress display. The caller holds p.mu.
+func (p *progress) clear() {
+	fmt.Fprint(p.out, clearLine)
+	if p.drawn && p.level >= verbosityFiles {
+		fmt.Fprint(p.out, "\033[1A"+clearLine)
+	}
+	p.drawn = false
 }
 
 // paint colors s if the output is a terminal
